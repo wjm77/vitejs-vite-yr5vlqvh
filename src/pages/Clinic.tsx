@@ -10,7 +10,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
+import { supabase } from '../config/supabase';
 import { useQueue } from '../context/QueueContext';
 
 function Clinic() {
@@ -79,7 +79,24 @@ function Clinic() {
    * هذا هو الـclinicId الحقيقي الذي تستخدمه التذاكر والاستدعاءات.
    */
   const activeClinicId = selectedClinic?.id ?? '';
+  useEffect(() => {
+    if (!activeClinicId) return;
 
+    const roomChannel = supabase.channel('online-rooms');
+
+    roomChannel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await roomChannel.track({
+          clinicId: activeClinicId,
+          onlineAt: new Date().toISOString(),
+        });
+      }
+    });
+
+    return () => {
+      void supabase.removeChannel(roomChannel);
+    };
+  }, [activeClinicId]);
   /*
    * قائمة انتظار العيادة المحددة فقط.
    */

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { supabase } from '../config/supabase';
 import {
   CheckCircle2,
   LogOut,
@@ -12,10 +13,33 @@ import { useNavigate } from 'react-router-dom';
 
 import { useQueue } from '../context/QueueContext';
 
-function Reception() {
-  const navigate = useNavigate();
-  const { clinics, currentPatients, getWaitingTickets, issueTicket, tickets } = useQueue();
-
+  function Reception() {
+    const navigate = useNavigate();
+    const { clinics, currentPatients, getWaitingTickets, issueTicket, tickets } = useQueue();
+    const [onlineClinicIds, setOnlineClinicIds] = useState<Set<string>>(new Set());
+  
+    useEffect(() => {
+      const roomChannel = supabase.channel('online-rooms');
+  
+      roomChannel
+        .on('presence', { event: 'sync' }, () => {
+          const state = roomChannel.presenceState();
+          const activeIds = new Set<string>();
+  
+          Object.values(state).forEach((presences: any) => {
+            presences.forEach((p: any) => {
+              if (p.clinicId) activeIds.add(p.clinicId);
+            });
+          });
+  
+          setOnlineClinicIds(activeIds);
+        })
+        .subscribe();
+  
+      return () => {
+        void supabase.removeChannel(roomChannel);
+      };
+    }, []);
   const [patientName, setPatientName] = useState('');
   const [clinicId, setClinicId] = useState(clinics[0]?.id ?? '');
   const [issuedTicket, setIssuedTicket] = useState<string | null>(null);
@@ -134,64 +158,63 @@ function Reception() {
             </button>
           </div>
 
-          {/* شريط حالة العيادات السبع */}
+          {/* شريط الغرف وحالة الاتصال */}
 <div className="w-full max-w-7xl mx-auto px-4 my-4">
   <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
     {clinics.slice(0, 7).map((clinic) => {
       const currentTicket = currentPatients[clinic.id];
       const waitingCount = getWaitingTickets(clinic.id).length;
-      const isActive = Boolean(currentTicket);
+      const isOnline = onlineClinicIds.has(clinic.id);
+      const isBusy = Boolean(currentTicket);
 
       return (
         <div
           key={clinic.id}
           className={`relative overflow-hidden p-3 rounded-xl border transition-all duration-300 flex flex-col justify-between ${
-            isActive
-              ? 'bg-emerald-500/10 border-emerald-500/40 text-slate-900 dark:text-white shadow-sm ring-1 ring-emerald-500/20'
-              : 'bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/60 text-slate-500 opacity-80'
+            isOnline
+              ? 'bg-white dark:bg-slate-800 border-emerald-500/50 shadow-sm ring-1 ring-emerald-500/20'
+              : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 opacity-60'
           }`}
         >
-          {/* شريط حالة علوي نبّاض عند وجود استدعاء */}
           <div
-            className={`absolute top-0 left-0 right-0 h-1 transition-all ${
-              isActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-200 dark:bg-slate-700'
+            className={`absolute top-0 left-0 right-0 h-1 ${
+              isBusy ? 'bg-amber-500 animate-pulse' : isOnline ? 'bg-emerald-500' : 'bg-slate-300'
             }`}
           />
 
-          {/* اسم العيادة ومؤشر الإشارة الضوئية */}
-          <div className="flex items-center justify-between gap-1 mb-1.5">
-            <span className="font-bold text-xs truncate" title={clinic.name}>
-              {clinic.name}
-            </span>
-            <span className="relative flex h-2 w-2 shrink-0">
-              {isActive && (
+          <div className="flex items-center justify-between gap-1 mb-1">
+            <div>
+              <span className="block font-black text-sm text-slate-800 dark:text-white">
+                غرفة {clinic.roomNumber || clinic.id}
+              </span>
+              <span className="block text-[10px] text-slate-400 truncate max-w-[80px]">
+                {clinic.name}
+              </span>
+            </div>
+            <span className="relative flex h-2.5 w-2.5">
+              {isOnline && (
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               )}
               <span
-                className={`relative inline-flex rounded-full h-2 w-2 ${
-                  isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
+                className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                  isOnline ? 'bg-emerald-500' : 'bg-slate-400'
                 }`}
               />
             </span>
           </div>
 
-          {/* الرقم الحالي وعدد الانتظار */}
-          <div className="flex items-end justify-between pt-1 border-t border-slate-100 dark:border-slate-700/40">
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
             <div>
-              <span className="block text-[9px] text-slate-400 font-medium">الآن</span>
-              <span
-                className={`text-sm font-black tracking-wide ${
-                  isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-300 dark:text-slate-600'
-                }`}
-              >
-                {currentTicket ? currentTicket.ticketNumber : '—'}
+              <span className="block text-[9px] text-slate-400 font-medium">
+                {isBusy ? 'مستدعى' : isOnline ? 'متاحة' : 'غير متصل'}
+              </span>
+              <span className={`text-xs font-black ${isBusy ? 'text-amber-600' : isOnline ? 'text-emerald-600' : 'text-slate-400'}`}>
+                {currentTicket ? currentTicket.ticketNumber : 'جاهزة'}
               </span>
             </div>
-            <div className="text-left">
-              <span className="inline-block text-[10px] bg-slate-100 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded-md font-semibold">
-                انتظار {waitingCount}
-              </span>
-            </div>
+            <span className="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded font-semibold">
+              انتظار {waitingCount}
+            </span>
           </div>
         </div>
       );
