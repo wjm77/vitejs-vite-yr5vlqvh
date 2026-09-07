@@ -14,8 +14,7 @@ import { useQueue } from '../context/QueueContext';
 
 function Reception() {
   const navigate = useNavigate();
-
-  const { clinics, issueTicket, tickets } = useQueue();
+  const { clinics, currentPatients, getWaitingTickets, issueTicket, tickets } = useQueue();
 
   const [patientName, setPatientName] = useState('');
   const [clinicId, setClinicId] = useState(clinics[0]?.id ?? '');
@@ -134,6 +133,71 @@ function Reception() {
               تسجيل الخروج
             </button>
           </div>
+
+          {/* شريط حالة العيادات السبع */}
+<div className="w-full max-w-7xl mx-auto px-4 my-4">
+  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+    {clinics.slice(0, 7).map((clinic) => {
+      const currentTicket = currentPatients[clinic.id];
+      const waitingCount = getWaitingTickets(clinic.id).length;
+      const isActive = Boolean(currentTicket);
+
+      return (
+        <div
+          key={clinic.id}
+          className={`relative overflow-hidden p-3 rounded-xl border transition-all duration-300 flex flex-col justify-between ${
+            isActive
+              ? 'bg-emerald-500/10 border-emerald-500/40 text-slate-900 dark:text-white shadow-sm ring-1 ring-emerald-500/20'
+              : 'bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/60 text-slate-500 opacity-80'
+          }`}
+        >
+          {/* شريط حالة علوي نبّاض عند وجود استدعاء */}
+          <div
+            className={`absolute top-0 left-0 right-0 h-1 transition-all ${
+              isActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-200 dark:bg-slate-700'
+            }`}
+          />
+
+          {/* اسم العيادة ومؤشر الإشارة الضوئية */}
+          <div className="flex items-center justify-between gap-1 mb-1.5">
+            <span className="font-bold text-xs truncate" title={clinic.name}>
+              {clinic.name}
+            </span>
+            <span className="relative flex h-2 w-2 shrink-0">
+              {isActive && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              )}
+              <span
+                className={`relative inline-flex rounded-full h-2 w-2 ${
+                  isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
+                }`}
+              />
+            </span>
+          </div>
+
+          {/* الرقم الحالي وعدد الانتظار */}
+          <div className="flex items-end justify-between pt-1 border-t border-slate-100 dark:border-slate-700/40">
+            <div>
+              <span className="block text-[9px] text-slate-400 font-medium">الآن</span>
+              <span
+                className={`text-sm font-black tracking-wide ${
+                  isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-300 dark:text-slate-600'
+                }`}
+              >
+                {currentTicket ? currentTicket.ticketNumber : '—'}
+              </span>
+            </div>
+            <div className="text-left">
+              <span className="inline-block text-[10px] bg-slate-100 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded-md font-semibold">
+                انتظار {waitingCount}
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+</div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             {/* Issue Ticket */}
