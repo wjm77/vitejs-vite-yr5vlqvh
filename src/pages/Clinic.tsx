@@ -80,7 +80,8 @@ function Clinic() {
    */
   const activeClinicId = selectedClinic?.id ?? '';
   useEffect(() => {
-    if (!activeClinicId) return;
+    // التأكد من وجود العيادة ورقم الغرفة
+    if (!activeClinicId || !clinicRoom) return;
 
     const roomChannel = supabase.channel('online-rooms');
 
@@ -88,6 +89,7 @@ function Clinic() {
       if (status === 'SUBSCRIBED') {
         await roomChannel.track({
           clinicId: activeClinicId,
+          roomNumber: clinicRoom, // 🟢 تم إضافة إرسال رقم الغرفة هنا
           onlineAt: new Date().toISOString(),
         });
       }
@@ -96,7 +98,7 @@ function Clinic() {
     return () => {
       void supabase.removeChannel(roomChannel);
     };
-  }, [activeClinicId]);
+  }, [activeClinicId, clinicRoom]);
   /*
    * قائمة انتظار العيادة المحددة فقط.
    */
