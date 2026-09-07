@@ -1,0 +1,226 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================
+   Base
+   ========================================================= */
+
+:root {
+  font-family: 'Cairo', Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color: #1f2937;
+  background: #f5f7fa;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  direction: rtl;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  direction: rtl;
+  background: #f5f7fa;
+  color: #1f2937;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* =========================================================
+   Root App
+   ========================================================= */
+
+#root {
+  min-height: 100vh;
+}
+
+/* =========================================================
+   Scrollbar
+   ========================================================= */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #eef2f7;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* =========================================================
+   Selection
+   ========================================================= */
+
+::selection {
+  background: rgba(37, 99, 235, 0.15);
+}
+
+/* =========================================================
+   Inputs
+   ========================================================= */
+
+input,
+select,
+textarea {
+  outline: none;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+/* =========================================================
+   Utility classes
+   ========================================================= */
+
+.page-container {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
+
+/* =========================================================
+   Display / TV Screen
+   ========================================================= */
+
+.display-screen {
+  min-height: 100vh;
+  width: 100%;
+  background: #f8fafc;
+}
+
+.display-number {
+  font-size: clamp(4rem, 10vw, 9rem);
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.display-name {
+  font-size: clamp(1.5rem, 3vw, 3rem);
+  font-weight: 700;
+}
+
+.display-clinic {
+  font-size: clamp(1rem, 2vw, 1.75rem);
+  font-weight: 600;
+}
+
+/* =========================================================
+   Animations
+   ========================================================= */
+
+@keyframes callIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.98);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pulseCall {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+@keyframes blinkCall {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.65;
+  }
+}
+
+.animate-call-in {
+  animation: callIn 0.35s ease-out;
+}
+
+.animate-pulse-call {
+  animation: pulseCall 1.2s ease-in-out infinite;
+}
+
+.animate-blink-call {
+  animation: blinkCall 1s ease-in-out infinite;
+}
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 16px;
+  }
+}
+
+/* =========================================================
+   TV / Large Screens
+   ========================================================= */
+
+@media (min-width: 1600px) {
+  .display-screen {
+    font-size: 1.1rem;
+  }
+}
