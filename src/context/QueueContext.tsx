@@ -327,35 +327,29 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   const issueTicket = useCallback(
     async (patientName: string, clinicId: string) => {
       const cleanName = patientName.trim();
-
-      if (!cleanName || !clinicId) {
-        return null;
-      }
-
+      if (!cleanName || !clinicId) return null;
+  
       const { data, error } = await supabase.rpc('issue_ticket', {
         p_patient_name: cleanName,
         p_clinic_id: clinicId,
       });
-
+  
       if (error) {
-        console.error('فشل إصدار التذكرة:', error);
+        alert('خطأ Supabase: ' + error.message);
         return null;
       }
-
+  
       if (!data) {
+        alert('لم يتم إرجاع بيانات التذكرة من السيرفر');
         return null;
       }
-
+  
       const ticket = Array.isArray(data) ? data[0] : data;
-
-      if (!ticket) {
-        return null;
-      }
-
+  
       const clinic = clinics.find((item) => item.id === ticket.clinic_id);
-
+  
       if (!clinic) {
-        console.error('لم يتم العثور على العيادة محليًا:', ticket.clinic_id);
+        alert('قائمة العيادات فارغة محلياً (clinics empty)!');
         return null;
       }
 
