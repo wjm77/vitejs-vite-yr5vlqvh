@@ -10,10 +10,11 @@ import {
   Filter,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
+import { usePageTitle } from '../hooks/usePageTitle';
 import { useQueue } from '../context/QueueContext';
 
   function Reception() {
+    usePageTitle('شاشة الاستقبال وإصدار التذاكر');
     const navigate = useNavigate();
     const { clinics, currentPatients, getWaitingTickets, issueTicket, tickets } = useQueue();
     const [onlineClinicIds, setOnlineClinicIds] = useState<Set<string>>(new Set());
@@ -41,7 +42,7 @@ import { useQueue } from '../context/QueueContext';
         void supabase.removeChannel(roomChannel);
       };
     }, []);
-    
+
   const [patientName, setPatientName] = useState('');
   const [clinicId, setClinicId] = useState(clinics[0]?.id ?? '');
   const [issuedTicket, setIssuedTicket] = useState<string | null>(null);

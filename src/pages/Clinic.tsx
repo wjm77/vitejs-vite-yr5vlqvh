@@ -12,8 +12,10 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../config/supabase';
 import { useQueue } from '../context/QueueContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 function Clinic() {
+
   const navigate = useNavigate();
 
   const {
@@ -36,6 +38,7 @@ function Clinic() {
     typeof window !== 'undefined'
       ? sessionStorage.getItem('clinicRoom') ?? ''
       : '';
+      usePageTitle(clinicRoom ? `عيادات الغرفة ${clinicRoom}` : 'لوحة العيادات');
 
   /*
    * جميع العيادات النشطة الموجودة في نفس الغرفة.
@@ -80,8 +83,7 @@ function Clinic() {
    */
   const activeClinicId = selectedClinic?.id ?? '';
   useEffect(() => {
-    // التأكد من وجود العيادة ورقم الغرفة
-    if (!activeClinicId || !clinicRoom) return;
+    if (!activeClinicId) return;
 
     const roomChannel = supabase.channel('online-rooms');
 
@@ -89,7 +91,6 @@ function Clinic() {
       if (status === 'SUBSCRIBED') {
         await roomChannel.track({
           clinicId: activeClinicId,
-          roomNumber: clinicRoom, // 🟢 تم إضافة إرسال رقم الغرفة هنا
           onlineAt: new Date().toISOString(),
         });
       }
@@ -98,7 +99,7 @@ function Clinic() {
     return () => {
       void supabase.removeChannel(roomChannel);
     };
-  }, [activeClinicId, clinicRoom]);
+  }, [activeClinicId]);
   /*
    * قائمة انتظار العيادة المحددة فقط.
    */

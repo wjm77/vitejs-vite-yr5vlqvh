@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Monitor, LogIn, Stethoscope, Users, ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 // بيانات الشرائح المقترحة لشريط الخدمات
 const carouselSlides = [
@@ -43,6 +44,7 @@ const carouselSlides = [
 ];
 
 function Home() {
+  usePageTitle('الرئيسية');
   const navigate = useNavigate();
   const [currentSlide, setCurrentSlide] = useState(0);
 

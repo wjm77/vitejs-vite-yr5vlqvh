@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { LogIn, Stethoscope } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
+import { usePageTitle } from '../hooks/usePageTitle';
 import { supabase } from '../config/supabase';
 
 function ClinicLogin() {
+  usePageTitle('تسجيل دخول العيادات');
   const navigate = useNavigate();
 
   const [username, setUsername] = useState('');

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, Monitor, Stethoscope } from 'lucide-react';
-
+import { usePageTitle } from '../hooks/usePageTitle';
 import { useQueue } from '../context/QueueContext';
 import type { Ticket } from '../types/queue';
 
@@ -108,6 +108,7 @@ function playNotificationSound() {
 }
 
 function Display() {
+  usePageTitle('شاشة التذاكر');
   const { tickets } = useQueue();
   const [currentTime, setCurrentTime] = useState(new Date());
   const previousCalledKeys = useRef<Set<string>>(new Set());

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { LogIn, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 function ReceptionLogin() {
+  usePageTitle('تسجيل دخول الاستقبال');
   const navigate = useNavigate();
 
   const [username, setUsername] = useState('');
