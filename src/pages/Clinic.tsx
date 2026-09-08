@@ -58,9 +58,9 @@ function Clinic() {
     if (!clinicRoom) {
       return [];
     }
-
+  
     return clinics
-      .filter((clinic) => clinic.isActive && clinic.roomNumber === clinicRoom)
+      .filter((clinic) => clinic.isActive && String(clinic.roomNumber) === String(clinicRoom))
       .sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   }, [clinics, clinicRoom]);
 
