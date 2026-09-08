@@ -164,8 +164,16 @@ import { useQueue } from '../context/QueueContext';
           {/* شريط الغرف السبع الموحد (غرفة 1 - غرفة 7) */}
 <div className="w-full max-w-7xl mx-auto px-4 my-4">
   <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
-    {['1', '2', '3', '4', '5', '6', '7'].map((roomNum) => {
-      // جلب كافة العيادات المرتبطة بهذه الغرفة
+  {['1', '2', '3', '4', '5', '6', '7'].map((roomNum) => {
+  // 🟢 تحديد اسم الغرفة/العيادة
+  const roomLabel =
+    roomNum === '6'
+      ? 'سحب الدم'
+      : roomNum === '7'
+      ? 'الطفل السليم'
+      : `غرفة ${roomNum}`;
+
+  // جلب كافة العيادات المرتبطة بهذه الغرفة
       const roomClinicsList = clinics.filter(
         (c) => String(c.roomNumber) === roomNum || c.id.includes(`room${roomNum}`)
       );
@@ -210,10 +218,13 @@ import { useQueue } from '../context/QueueContext';
           />
 
           {/* اسم الغرفة ومؤشر اتصال اليوزر */}
-          <div className="flex items-center justify-between gap-1 mb-2">
-            <span className="block font-black text-base text-slate-800 dark:text-white">
-              غرفة {roomNum}
-            </span>
+<div className="flex items-center justify-between gap-1 mb-2">
+  <span
+    className="block font-black text-xs sm:text-sm text-slate-800 dark:text-white truncate"
+    title={roomLabel}
+  >
+    {roomLabel}
+  </span>
 
             <span className="relative flex h-2.5 w-2.5">
               {isOnline && (

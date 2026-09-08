@@ -14,6 +14,12 @@ import { supabase } from '../config/supabase';
 import { useQueue } from '../context/QueueContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 
+const getRoomTitle = (roomNum: string) => {
+  if (roomNum === '6') return 'عيادة سحب الدم';
+  if (roomNum === '7') return 'عيادة الطفل السليم';
+  return `عيادات الغرفة ${roomNum}`;
+};
+
 function Clinic() {
 
   const navigate = useNavigate();
@@ -269,8 +275,8 @@ function Clinic() {
                     مركز الرعاية الصحية الأولية بالخرج
                   </p>
                   <h1 className="text-2xl font-extrabold text-slate-900">
-                    عيادات الغرفة {clinicRoom}
-                  </h1>
+  {getRoomTitle(clinicRoom)}
+</h1>
                 </div>
               </div>
             </div>
@@ -349,12 +355,16 @@ function Clinic() {
           </div>
 
           <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <div className="text-xs font-bold text-slate-500">رقم الغرفة</div>
+  <div className="text-xs font-bold text-slate-500">اسم الغرفة / العيادة</div>
 
-            <div className="mt-2 text-lg font-extrabold text-slate-900">
-              غرفة {selectedClinic?.roomNumber ?? clinicRoom}
-            </div>
-          </div>
+  <div className="mt-2 text-lg font-extrabold text-slate-900">
+    {clinicRoom === '6'
+      ? 'سحب الدم'
+      : clinicRoom === '7'
+      ? 'الطفل السليم'
+      : `غرفة ${selectedClinic?.roomNumber ?? clinicRoom}`}
+  </div>
+</div>
 
           <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
             <div className="text-xs font-bold text-slate-500">
