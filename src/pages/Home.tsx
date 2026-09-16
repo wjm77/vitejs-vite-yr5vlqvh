@@ -79,7 +79,7 @@ function Home() {
               />
               <div className="text-right">
                 <h1 className="text-lg font-extrabold text-white sm:text-xl">
-                  مركز الرعاية الصحية الأولية بالخرج
+                  مركز الرعاية الصحية الأولية بالفيصلية بالخرج
                 </h1>
                 <p className="mt-0.5 text-xs font-semibold text-sky-100">
                   تجمع الرياض الصحي الأول
