@@ -66,13 +66,7 @@ const waitingTickets = tickets
     const matchesClinic =
       selectedFilterClinic === 'all' ||
       ticket.clinicId === selectedFilterClinic;
-
-    // 🟢 فحص ما إذا كانت التذكرة قد صَدَرت اليوم فقط
-    const ticketDate = new Date(ticket.createdAt).toDateString();
-    const today = new Date().toDateString();
-    const isToday = ticketDate === today;
-
-    return isWaiting && matchesClinic && isToday;
+    return isWaiting && matchesClinic;
   })
   .sort((a, b) => a.createdAt - b.createdAt);
 
