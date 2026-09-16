@@ -60,15 +60,21 @@ import { useQueue } from '../context/QueueContext';
   }, [clinics, clinicId]);
 
   // تصفية وترتيب المراجعين المنتظرين
-  const waitingTickets = tickets
-    .filter((ticket) => {
-      const isWaiting = ticket.status === 'waiting';
-      const matchesClinic =
-        selectedFilterClinic === 'all' ||
-        ticket.clinicId === selectedFilterClinic;
-      return isWaiting && matchesClinic;
-    })
-    .sort((a, b) => a.createdAt - b.createdAt);
+const waitingTickets = tickets
+  .filter((ticket) => {
+    const isWaiting = ticket.status === 'waiting';
+    const matchesClinic =
+      selectedFilterClinic === 'all' ||
+      ticket.clinicId === selectedFilterClinic;
+
+    // 🟢 فحص ما إذا كانت التذكرة قد صَدَرت اليوم فقط
+    const ticketDate = new Date(ticket.createdAt).toDateString();
+    const today = new Date().toDateString();
+    const isToday = ticketDate === today;
+
+    return isWaiting && matchesClinic && isToday;
+  })
+  .sort((a, b) => a.createdAt - b.createdAt);
 
   // حساب الصفحات
   const totalPages = Math.ceil(waitingTickets.length / itemsPerPage);
