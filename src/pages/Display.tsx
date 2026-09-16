@@ -1,29 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, Monitor, Stethoscope } from 'lucide-react';
+import { Bell, Monitor, Stethoscope, Users } from 'lucide-react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useQueue } from '../context/QueueContext';
 import type { Ticket } from '../types/queue';
 
 const DISPLAY_DURATION = 3 * 60 * 1000;
-const MAX_DISPLAY_TICKETS = 7;
 
 function getSpeechText(ticket: Ticket) {
-  // 1. تحويل الحروف الإنجليزية إلى مقابلها الصوتي بالعربي
   let text = ticket.ticketNumber
     .replace(/BD/gi, ' بي دي ')
     .replace(/HC/gi, ' إتش سي ')
     .replace(/F/gi, ' إف ')
     .replace(/U/gi, ' يو ');
 
-  // 2. معالجة الشرطة - وفصل الأرقام بعد الحرف لنطقها مفردة أو خانة بخانة
-  // تفكيك الأرقام المتتالية (مثل 004) وإضافة مساحات لتنطق (صفر صفر أربعة)
   text = text.replace(/-/g, ' ');
 
-  // تحويل الأرقام التي تبدأ بأصفار إلى نطق خانة بخانة كي لا ينطقها المتصفح كـ (أربعة آلاف)
   const parts = text.split(' ');
   const processedParts = parts.map((part) => {
     if (/^\d+$/.test(part)) {
-      // إذا كان الجزء عبارة عن أرقام فقط، نضيف مسافة بين كل رقم لتنطق خانة بخانة
       return part.split('').join(' ');
     }
     return part;
@@ -32,7 +26,6 @@ function getSpeechText(ticket: Ticket) {
   const formattedNumber = processedParts.join(' ');
   const room = ticket.roomNumber;
 
-  // 3. النص النهائي الموجه لمحرك الصوت
   return `رقم ${formattedNumber}، يرجى التوجه إلى الغرفة رقم ${room}`;
 }
 
@@ -40,17 +33,14 @@ function speakTicket(ticket: Ticket) {
   try {
     if (!('speechSynthesis' in window)) return;
 
-    window.speechSynthesis.cancel(); // إيقاف أي صوت سابق
+    window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(getSpeechText(ticket));
-
-    // إعدادات الصوت العربي
     utterance.lang = 'ar-SA';
-    utterance.rate = 0.8; // سرعة مناسبة للانتظار
+    utterance.rate = 0.8;
     utterance.pitch = 1;
     utterance.volume = 1;
 
-    // البحث عن أفضل صوت عربي مثبت في النظام (Windows/Android/iOS)
     const voices = window.speechSynthesis.getVoices();
     const arabicVoice = voices.find(
       (voice) => voice.lang.includes('ar') || voice.lang.startsWith('ar')
@@ -109,7 +99,7 @@ function playNotificationSound() {
 
 function Display() {
   usePageTitle('شاشة التذاكر');
-  const { tickets } = useQueue();
+  const { clinics, tickets } = useQueue();
   const [currentTime, setCurrentTime] = useState(new Date());
   const previousCalledKeys = useRef<Set<string>>(new Set());
   const [newCallIds, setNewCallIds] = useState<Set<string>>(new Set());
@@ -124,17 +114,14 @@ function Display() {
     };
   }, []);
 
+  // التذاكر المستدعاة حالياً للالتزام بنغمات التنبيه والصوت
   const calledTickets = useMemo(() => {
     const now = Date.now();
-
-    return tickets
-      .filter((ticket) => {
-        if (ticket.status !== 'called') return false;
-        if (!ticket.calledAt) return false;
-        return now - ticket.calledAt <= DISPLAY_DURATION;
-      })
-      .sort((a, b) => (b.calledAt ?? 0) - (a.calledAt ?? 0))
-      .slice(0, MAX_DISPLAY_TICKETS);
+    return tickets.filter((ticket) => {
+      if (ticket.status !== 'called') return false;
+      if (!ticket.calledAt) return false;
+      return now - ticket.calledAt <= DISPLAY_DURATION;
+    });
   }, [tickets, currentTime]);
 
   useEffect(() => {
@@ -181,20 +168,60 @@ function Display() {
     previousCalledKeys.current = currentKeys;
   }, [calledTickets]);
 
-  const displayTickets = calledTickets;
+  // 1. تصفية وتجهيز العيادات الفعالة التي لديها تذاكر (سواء منتظرة أو مستدعاة)
+  const activeClinicsData = useMemo(() => {
+    return clinics
+      .filter((clinic) => clinic.isActive)
+      .map((clinic) => {
+        const clinicTickets = tickets.filter(
+          (t) => t.clinicId === clinic.id
+        );
+
+        // التذكرة المستدعاة حالياً في العيادة
+        const currentCalled = clinicTickets
+          .filter((t) => t.status === 'called')
+          .sort((a, b) => (b.calledAt ?? 0) - (a.calledAt ?? 0))[0];
+
+        // القادمون (التذاكر الـ 5 القادمة المنتظرة)
+        const upcomingTickets = clinicTickets
+          .filter((t) => t.status === 'waiting')
+          .sort((a, b) => a.createdAt - b.createdAt)
+          .slice(0, 5);
+
+        return {
+          clinic,
+          currentCalled,
+          upcomingTickets,
+          totalCount: (currentCalled ? 1 : 0) + upcomingTickets.length,
+        };
+      })
+      .filter((item) => item.totalCount > 0); // نُظهر فقط العيادات التي بها تذاكر
+  }, [clinics, tickets]);
+
+  // حساب عدد الأعمدة الديناميكي بناءً على عدد العيادات الفعالة
+  const gridColsClass = useMemo(() => {
+    const count = activeClinicsData.length;
+    if (count <= 1) return 'grid-cols-1';
+    if (count === 2) return 'grid-cols-2';
+    if (count === 3) return 'grid-cols-3';
+    if (count === 4) return 'grid-cols-4';
+    if (count === 5) return 'grid-cols-5';
+    if (count === 6) return 'grid-cols-6';
+    return 'grid-cols-7';
+  }, [activeClinicsData.length]);
 
   return (
     <div
-      className="display-screen h-screen overflow-hidden flex flex-col"
+      className="display-screen h-screen overflow-hidden flex flex-col bg-slate-900"
       dir="rtl"
     >
       {/* Header */}
-      <header className="flex h-[80px] shrink-0 items-center justify-between border-b border-white/20 bg-white px-8 py-3 shadow-sm">
+      <header className="flex h-[80px] shrink-0 items-center justify-between border-b border-slate-800 bg-white px-8 py-3 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="flex items-center justify-center">
             <img
               src="/logo.svg"
-              alt="شعار تجمع الرياض الصحي الأول"
+              alt="شعار المركز الصحي"
               className="h-12 w-auto object-contain drop-shadow-md"
             />
           </div>
@@ -226,81 +253,122 @@ function Display() {
         </div>
       </header>
 
-      {/* Main */}
-      <main className="flex flex-1 flex-col overflow-hidden p-4 bg-sky-500">
-        {/* Title */}
+      {/* Main Container */}
+      <main className="flex flex-1 flex-col overflow-hidden p-4 bg-slate-900">
         <div className="mb-3 flex shrink-0 items-center justify-between">
           <div>
             <h2 className="text-2xl font-extrabold text-white">
-              الأرقام المستدعاة
+              شاشة استدعاء وتتابع الدور
             </h2>
-            <p className="text-xs font-semibold text-white/80">
-              يرجى التوجه إلى العيادة والغرفة الموضحة
+            <p className="text-xs font-semibold text-slate-300">
+              يرجى متابعة القائمة والتوجه للعيادة عند النداء على رقمك
             </p>
           </div>
 
-          <div className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs font-bold text-slate-600 shadow-sm">
-            <Monitor size={16} />
-            الشاشة الرئيسية
+          <div className="flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2 text-xs font-bold text-slate-200 border border-slate-700">
+            <Monitor size={16} className="text-sky-400" />
+            <span>العيادات الفعالة: {activeClinicsData.length}</span>
           </div>
         </div>
 
-        {/* Tickets Grid */}
-        {displayTickets.length > 0 ? (
-          <div
-            className={`
-              grid flex-1 gap-4 overflow-hidden
-              ${
-                displayTickets.length === 1
-                  ? 'grid-cols-1 grid-rows-1'
-                  : displayTickets.length === 2
-                  ? 'grid-cols-2 grid-rows-1'
-                  : displayTickets.length === 3
-                  ? 'grid-cols-3 grid-rows-1'
-                  : displayTickets.length === 4
-                  ? 'grid-cols-3 grid-rows-2'
-                  : displayTickets.length === 5
-                  ? 'grid-cols-3 grid-rows-2'
-                  : displayTickets.length === 6
-                  ? 'grid-cols-3 grid-rows-2'
-                  : 'grid-cols-3 grid-rows-3'
-              }
-            `}
-          >
-            {displayTickets.map((ticket, index) => {
-              // لمعالجة حالة 4 بطاقات (3 في الأعلى والرابعة في السطر الثاني على اليمين)
-              const isFourthOfFour = displayTickets.length === 4 && index === 3;
-              // لمعالجة حالة 7 بطاقات (السابعة في السطر الثالث على اليمين)
-              const isSeventhOfSeven =
-                displayTickets.length === 7 && index === 6;
-
-              let customClasses = '';
-              if (isFourthOfFour || isSeventhOfSeven) {
-                customClasses = 'col-start-1';
-              }
-
-              return (
-                <div
-                  key={ticket.id}
-                  className={`${customClasses} h-full w-full`}
-                >
-                  <TicketCard
-                    ticket={ticket}
-                    isNew={newCallIds.has(ticket.id)}
-                    totalTickets={displayTickets.length}
-                  />
+        {/* Dynamic Columns Grid */}
+        {activeClinicsData.length > 0 ? (
+          <div className={`grid ${gridColsClass} flex-1 gap-4 overflow-hidden`}>
+            {activeClinicsData.map(({ clinic, currentCalled, upcomingTickets }) => (
+              <div
+                key={clinic.id}
+                className="flex flex-col overflow-hidden rounded-2xl bg-slate-800/90 border border-slate-700/60 shadow-xl"
+              >
+                {/* Clinic Header */}
+                <div className="flex shrink-0 items-center justify-between border-b border-slate-700 bg-sky-600 px-4 py-3 text-white">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-extrabold text-lg truncate">
+                      {clinic.name}
+                    </h3>
+                  </div>
+                  <div className="mr-2 rounded-lg bg-sky-800 px-3 py-1 text-xs font-black text-sky-100 whitespace-nowrap">
+                    غرفة {clinic.roomNumber}
+                  </div>
                 </div>
-              );
-            })}
+
+                {/* Main Content Area */}
+                <div className="flex flex-1 flex-col p-3 gap-3 overflow-hidden">
+                  {/* Current Called Ticket (Highlighted Box) */}
+                  <div className="shrink-0">
+                    <span className="mb-1 block text-xs font-extrabold text-amber-400">
+                      الرقم المستدعى حالياً:
+                    </span>
+                    {currentCalled ? (
+                      <div
+                        className={`flex flex-col items-center justify-center rounded-xl p-3 text-center border-2 transition-all ${
+                          newCallIds.has(currentCalled.id)
+                            ? 'bg-amber-400 text-slate-950 border-white animate-pulse shadow-[0_0_20px_rgba(251,191,36,0.6)]'
+                            : 'bg-gradient-to-b from-sky-500 to-sky-600 text-white border-sky-400 shadow-md'
+                        }`}
+                      >
+                        <div className="text-3xl lg:text-4xl font-black tracking-tight">
+                          {currentCalled.ticketNumber}
+                        </div>
+                        <div className="mt-1 text-xs font-extrabold opacity-90 truncate max-w-full">
+                          {currentCalled.patientName || 'مراجع'}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-16 items-center justify-center rounded-xl border border-dashed border-slate-600 bg-slate-800/50 text-xs font-semibold text-slate-400">
+                        لا يوجد استدعاء حالي
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Upcoming 5 Tickets List */}
+                  <div className="flex flex-1 flex-col overflow-hidden border-t border-slate-700/80 pt-2">
+                    <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-400">
+                      <span className="flex items-center gap-1">
+                        <Users size={14} className="text-sky-400" />
+                        القادمون بعد قليلاً (أقصاه 5)
+                      </span>
+                      <span>({upcomingTickets.length})</span>
+                    </div>
+
+                    <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+                      {upcomingTickets.length > 0 ? (
+                        upcomingTickets.map((ticket, idx) => (
+                          <div
+                            key={ticket.id}
+                            className="flex items-center justify-between rounded-lg bg-slate-700/50 border border-slate-600/40 p-2 text-slate-200"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-600 text-[10px] font-bold text-slate-300">
+                                {idx + 1}
+                              </span>
+                              <span className="font-black text-sm text-sky-300">
+                                {ticket.ticketNumber}
+                              </span>
+                            </div>
+                            <span className="text-xs font-medium text-slate-300 truncate max-w-[100px]">
+                              {ticket.patientName}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex h-20 items-center justify-center text-xs font-medium text-slate-500">
+                          لا توجد تذاكر قائمة
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <EmptyDisplay />
         )}
 
         {/* Footer */}
-        <footer className="mt-2 flex shrink-0 items-center justify-center">
-          <p className="text-xs font-semibold text-white/80">
-            يرجى متابعة الشاشة والتوجه إلى العيادة عند استدعاء رقمك
+        <footer className="mt-2 flex shrink-0 items-center justify-center border-t border-slate-800 pt-2">
+          <p className="text-xs font-semibold text-slate-400">
+            يرجى الانتباه إلى رقم التذكرة والغرفة الموضحة أعلاه
           </p>
         </footer>
       </main>
@@ -308,175 +376,18 @@ function Display() {
   );
 }
 
-// Ticket Card Component
-interface TicketCardProps {
-  ticket: Ticket;
-  isNew: boolean;
-  totalTickets: number;
-}
-
-function TicketCard({ ticket, isNew, totalTickets }: TicketCardProps) {
-  const [remainingSeconds, setRemainingSeconds] = useState(() =>
-    Math.max(
-      0,
-      Math.ceil(
-        ((ticket.calledAt ?? Date.now()) + DISPLAY_DURATION - Date.now()) / 1000
-      )
-    )
-  );
-
-  useEffect(() => {
-    const update = () => {
-      const calledAt = ticket.calledAt ?? Date.now();
-      const seconds = Math.max(
-        0,
-        Math.ceil((calledAt + DISPLAY_DURATION - Date.now()) / 1000)
-      );
-      setRemainingSeconds(seconds);
-    };
-
-    update();
-    const timer = window.setInterval(update, 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [ticket.calledAt]);
-
-  const callTime = ticket.calledAt
-    ? new Date(ticket.calledAt).toLocaleTimeString('ar-SA', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      })
-    : '--:--:--';
-
-  // ضبط الأحجام ديناميكياً بحسب عدد التذاكر
-  const getDynamicStyles = () => {
-    if (totalTickets <= 2) {
-      return {
-        numberText: 'text-7xl lg:text-9xl',
-        clinicText: 'text-xl lg:text-2xl',
-        roomBadge: 'text-lg lg:text-xl px-4 py-2',
-        instructionText: 'text-lg lg:text-xl mt-3',
-        padding: 'p-6',
-      };
-    } else if (totalTickets <= 4) {
-      return {
-        numberText: 'text-5xl lg:text-7xl',
-        clinicText: 'text-lg lg:text-xl',
-        roomBadge: 'text-base lg:text-lg px-3 py-1.5',
-        instructionText: 'text-base lg:text-lg mt-2',
-        padding: 'p-4',
-      };
-    } else {
-      // 5 إلى 7 تذاكر
-      return {
-        numberText: 'text-3xl lg:text-5xl',
-        clinicText: 'text-base lg:text-lg',
-        roomBadge: 'text-sm lg:text-base px-2.5 py-1',
-        instructionText: 'text-sm lg:text-base mt-1',
-        padding: 'p-3',
-      };
-    }
-  };
-
-  const styles = getDynamicStyles();
-
-  return (
-    <div
-      className={`
-        relative flex flex-col justify-between overflow-hidden rounded-2xl bg-white
-        transition-all duration-300 ${styles.padding}
-        ${
-          isNew
-            ? 'scale-[1.01] border-4 border-yellow-400 shadow-[0_8px_30px_rgba(253,224,71,0.4)]'
-            : 'border-4 border-transparent shadow-xl ring-1 ring-black/5'
-        }
-      `}
-    >
-      {/* Clinic & Room */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-xs font-extrabold text-slate-400">العيادة</p>
-          <h3
-            className={`font-extrabold text-slate-800 truncate ${styles.clinicText}`}
-          >
-            {ticket.clinicName}
-          </h3>
-        </div>
-
-        <div
-          className={`
-            rounded-xl bg-blue-50 font-extrabold text-blue-700 whitespace-nowrap shrink-0
-            ${styles.roomBadge}
-          `}
-        >
-          غرفة {ticket.roomNumber}
-        </div>
-      </div>
-
-      {/* Ticket Number */}
-      <div className="flex flex-1 flex-col items-center justify-center py-1">
-        <div
-          className={`
-            display-number font-black text-blue-700 leading-none tracking-tight
-            ${styles.numberText}
-            ${isNew ? 'animate-pulse-call' : ''}
-          `}
-        >
-          {ticket.ticketNumber}
-        </div>
-
-        <div
-          className={`text-center font-extrabold text-slate-700 ${styles.instructionText}`}
-        >
-          يرجى التوجه إلى غرفة {ticket.roomNumber}
-        </div>
-      </div>
-
-      {/* Footer Info */}
-      <div className="flex items-center justify-between border-t border-slate-100 pt-2 shrink-0">
-        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
-          <Bell size={14} className="text-blue-600" />
-          <span>{callTime}</span>
-        </div>
-
-        <div
-          className={`
-            rounded-full px-3 py-1 text-xs font-extrabold
-            ${
-              remainingSeconds <= 10
-                ? 'bg-red-50 text-red-600'
-                : 'bg-emerald-50 text-emerald-700'
-            }
-          `}
-        >
-          متبقي {formatRemainingTime(remainingSeconds)}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function formatRemainingTime(totalSeconds: number) {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
-}
-
 function EmptyDisplay() {
   return (
-    <div className="flex flex-1 items-center justify-center rounded-3xl bg-white shadow-2xl">
+    <div className="flex flex-1 items-center justify-center rounded-3xl bg-slate-800/80 border border-slate-700 shadow-2xl">
       <div className="text-center">
-        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-500">
+        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-sky-950 text-sky-400 border border-sky-800">
           <Stethoscope size={36} />
         </div>
-        <h2 className="text-3xl font-extrabold text-slate-700">
-          لا توجد أرقام مستدعاة حاليًا
+        <h2 className="text-2xl font-extrabold text-white">
+          لا توجد عيادات أو تذاكر نشطة حالياً
         </h2>
-        <p className="mt-2 text-base font-semibold text-slate-400">
-          سيتم عرض الرقم هنا عند استدعاء أحد المراجعين
+        <p className="mt-2 text-sm font-semibold text-slate-400">
+          سيتم عرض قوائم العيادات تلقائياً عند إصدار أو استدعاء التذاكر
         </p>
       </div>
     </div>
