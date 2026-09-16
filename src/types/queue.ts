@@ -1,4 +1,4 @@
-export type TicketStatus = 'waiting' | 'called' | 'completed' | 'skipped';
+export type TicketStatus = 'waiting' | 'called' | 'completed' | 'skipped'| 'cancelled';
 
 export interface Clinic {
   id: string;
