@@ -116,7 +116,16 @@ export function QueueProvider({ children }: { children: ReactNode }) {
    * تحميل جميع التذاكر
    * ============================================================
    */
+  /*
+   * ============================================================
+   * تحميل جميع تذاكر اليوم فقط
+   * ============================================================
+   */
   const loadTickets = useCallback(async () => {
+    // 🟢 تحديد بداية يوم اليوم (00:00:00)
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
     const { data, error } = await supabase
       .from('tickets')
       .select(
@@ -138,6 +147,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         )
       `
       )
+      .gte('created_at', startOfToday.toISOString()) // ⬅️ إضافة فلتر تاريخ اليوم فقط
       .order('created_at', { ascending: true });
 
     if (error) {
@@ -222,10 +232,22 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         },
         async (payload) => {
           const ticketId = payload.new?.id;
+          const createdAt = payload.new?.created_at;
 
           if (!ticketId || !mounted) return;
 
-          // إذا كانت التذكرة قيد المعالجة محلياً (تم إنشاؤها عبر هذا العميل)، نتجاهل الحدث المكرر
+          // 🟢 التأكد من أن التذكرة الصادرة هي لتاريخ اليوم
+          if (createdAt) {
+            const ticketDate = new Date(createdAt);
+            const today = new Date();
+            const isToday =
+              ticketDate.getDate() === today.getDate() &&
+              ticketDate.getMonth() === today.getMonth() &&
+              ticketDate.getFullYear() === today.getFullYear();
+
+            if (!isToday) return; // تجاهل التذاكر القديمة
+          }
+
           if (processingTicketsRef.current.has(ticketId)) {
             return;
           }
