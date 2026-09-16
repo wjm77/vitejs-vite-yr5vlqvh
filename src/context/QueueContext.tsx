@@ -18,6 +18,7 @@ interface QueueContextValue {
   tickets: Ticket[];
   currentPatients: Record<string, Ticket | null>;
   activeCalls: ActiveCall[];
+  cancelTicket: (ticketId: string) => Promise<void>;
 
   issueTicket: (
     patientName: string,
@@ -695,6 +696,55 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     [getClinicTickets]
   );
 
+  /*
+   * ============================================================
+   * إلغاء/حذف التذكرة
+   * ============================================================
+   */
+  const cancelTicket = useCallback(async (ticketId: string): Promise<void> => {
+    // إضافة التذكرة إلى القائمة المجهزة لمنع التكرار في Realtime
+    processingTicketsRef.current.add(ticketId);
+
+    // تحديث الحالة في قاعدة البيانات إلى 'cancelled' (أو يمكنك استخدام .delete() للحذف النهائي)
+    const { error } = await supabase
+      .from('tickets')
+      .update({ status: 'cancelled' })
+      .eq('id', ticketId);
+
+    if (error) {
+      console.error('فشل إلغاء التذكرة:', error);
+      alert('حدث خطأ أثناء إلغاء التذكرة: ' + error.message);
+      processingTicketsRef.current.delete(ticketId);
+      return;
+    }
+
+    // تحديث الحالة محلياً في الـ React State
+    setTickets((prev) =>
+      prev.map((ticket) =>
+        ticket.id === ticketId
+          ? { ...ticket, status: 'cancelled' }
+          : ticket
+      )
+      // إذا كنت تفضل حذفها تماماً من القائمة المحلية بدلاً من تغيير حالتها استخدم:
+      // prev.filter((ticket) => ticket.id !== ticketId)
+    );
+
+    // تنظيف المراجع الحالي إذا كانت التذكرة هي المستدعاة
+    setCurrentPatients((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((clinicId) => {
+        if (next[clinicId]?.id === ticketId) {
+          next[clinicId] = null;
+        }
+      });
+      return next;
+    });
+
+    setTimeout(() => {
+      processingTicketsRef.current.delete(ticketId);
+    }, 1000);
+  }, []);
+
   const value = useMemo<QueueContextValue>(
     () => ({
       clinics,
@@ -708,6 +758,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       recallPatient,
       skipPatient,
       completePatient,
+      cancelTicket,
 
       getClinicById,
       getClinicTickets,
