@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -52,6 +53,9 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   >({});
 
   const [activeCalls, setActiveCalls] = useState<ActiveCall[]>([]);
+
+  // 1. استخدام Ref لتتبع العمليات/التذاكر المعالجة حالياً لمنع التكرار والسباق (Race Conditions)
+  const processingTicketsRef = useRef<Set<string>>(new Set());
 
   /*
    * ============================================================
@@ -200,7 +204,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
   /*
    * ============================================================
-   * Supabase Realtime
+   * Supabase Realtime (تطبيق الحل الثاني: التجاهل والمزامنة الذكية)
    * ============================================================
    */
   useEffect(() => {
@@ -218,25 +222,24 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         async (payload) => {
           const ticketId = payload.new?.id;
 
-          if (!ticketId || !mounted) {
+          if (!ticketId || !mounted) return;
+
+          // إذا كانت التذكرة قيد المعالجة محلياً (تم إنشاؤها عبر هذا العميل)، نتجاهل الحدث المكرر
+          if (processingTicketsRef.current.has(ticketId)) {
             return;
           }
 
           const newTicket = await loadSingleTicket(ticketId);
 
-          if (!newTicket || !mounted) {
-            return;
-          }
+          if (!newTicket || !mounted) return;
 
           setTickets((prev) => {
             const exists = prev.some((ticket) => ticket.id === newTicket.id);
-
             if (exists) {
               return prev.map((ticket) =>
                 ticket.id === newTicket.id ? newTicket : ticket
               );
             }
-
             return [...prev, newTicket].sort(
               (a, b) => a.createdAt - b.createdAt
             );
@@ -253,15 +256,16 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         async (payload) => {
           const ticketId = payload.new?.id;
 
-          if (!ticketId || !mounted) {
+          if (!ticketId || !mounted) return;
+
+          // إذا كنا نقوم بتحديث التذكرة محلياً (مثل callNext)، نحمي الحالة من الاستدعاء المزدوج
+          if (processingTicketsRef.current.has(ticketId)) {
             return;
           }
 
           const updatedTicket = await loadSingleTicket(ticketId);
 
-          if (!updatedTicket || !mounted) {
-            return;
-          }
+          if (!updatedTicket || !mounted) return;
 
           setTickets((prev) => {
             const exists = prev.some(
@@ -290,21 +294,17 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         (payload) => {
           const ticketId = payload.old?.id;
 
-          if (!ticketId || !mounted) {
-            return;
-          }
+          if (!ticketId || !mounted) return;
 
           setTickets((prev) => prev.filter((ticket) => ticket.id !== ticketId));
 
           setCurrentPatients((prev) => {
             const next = { ...prev };
-
             Object.keys(next).forEach((clinicId) => {
               if (next[clinicId]?.id === ticketId) {
                 next[clinicId] = null;
               }
             });
-
             return next;
           });
         }
@@ -328,26 +328,25 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     async (patientName: string, clinicId: string) => {
       const cleanName = patientName.trim();
       if (!cleanName || !clinicId) return null;
-  
+
       const { data, error } = await supabase.rpc('issue_ticket', {
         p_patient_name: cleanName,
         p_clinic_id: clinicId,
       });
-  
+
       if (error) {
         alert('خطأ Supabase: ' + error.message);
         return null;
       }
-  
+
       if (!data) {
         alert('لم يتم إرجاع بيانات التذكرة من السيرفر');
         return null;
       }
-  
+
       const ticket = Array.isArray(data) ? data[0] : data;
-  
       const clinic = clinics.find((item) => item.id === ticket.clinic_id);
-  
+
       if (!clinic) {
         alert('قائمة العيادات فارغة محلياً (clinics empty)!');
         return null;
@@ -371,17 +370,23 @@ export function QueueProvider({ children }: { children: ReactNode }) {
           : undefined,
       };
 
+      // إضافة التذكرة إلى القائمة المجهزة لمنع إشارات Realtime المكررة
+      processingTicketsRef.current.add(newTicket.id);
+
       setTickets((prev) => {
         const exists = prev.some((item) => item.id === newTicket.id);
-
         if (exists) {
           return prev.map((item) =>
             item.id === newTicket.id ? newTicket : item
           );
         }
-
         return [...prev, newTicket].sort((a, b) => a.createdAt - b.createdAt);
       });
+
+      // إزالة التذكرة من القائمة بعد انتهاء فترة الأمان
+      setTimeout(() => {
+        processingTicketsRef.current.delete(newTicket.id);
+      }, 1000);
 
       return newTicket;
     },
@@ -414,21 +419,27 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
   /*
    * ============================================================
-   * استدعاء الرقم التالي
+   * استدعاء الرقم التالي (مع تطبيق الحماية من الاستدعاء المزدوج)
    * ============================================================
    */
   const callNext = useCallback(
     async (clinicId: string): Promise<Ticket | null> => {
+      // البحث عن أول تذكرة منتظرة ليست قيد المعالجة حالياً
       const waitingTicket = tickets
         .filter(
           (ticket) =>
-            ticket.clinicId === clinicId && ticket.status === 'waiting'
+            ticket.clinicId === clinicId &&
+            ticket.status === 'waiting' &&
+            !processingTicketsRef.current.has(ticket.id)
         )
         .sort((a, b) => a.createdAt - b.createdAt)[0];
 
       if (!waitingTicket) {
         return null;
       }
+
+      // حظر التذكرة فوراً لمنع أي نقرة مزدوجة أو معالجة تزامنية
+      processingTicketsRef.current.add(waitingTicket.id);
 
       const now = new Date();
 
@@ -442,13 +453,9 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         .select()
         .single();
 
-      if (error) {
+      if (error || !updatedRow) {
         console.error('فشل تحديث حالة التذكرة إلى called:', error);
-        return null;
-      }
-
-      if (!updatedRow) {
-        console.error('لم يتم العثور على التذكرة لتحديثها:', waitingTicket.id);
+        processingTicketsRef.current.delete(waitingTicket.id);
         return null;
       }
 
@@ -472,6 +479,11 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       }));
 
       createActiveCall(updatedTicket);
+
+      // تنظيف القفل بعد ثانية واحدة لمنع التأثير على التحديثات المستقبليّة
+      setTimeout(() => {
+        processingTicketsRef.current.delete(waitingTicket.id);
+      }, 1000);
 
       return updatedTicket;
     },
@@ -502,6 +514,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
    * ============================================================
    */
   const skipPatient = useCallback(async (ticketId: string): Promise<void> => {
+    processingTicketsRef.current.add(ticketId);
+
     const { error } = await supabase
       .from('tickets')
       .update({
@@ -511,6 +525,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
     if (error) {
       console.error('فشل تخطي التذكرة:', error);
+      processingTicketsRef.current.delete(ticketId);
       return;
     }
 
@@ -527,15 +542,17 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
     setCurrentPatients((prev) => {
       const next = { ...prev };
-
       Object.keys(next).forEach((clinicId) => {
         if (next[clinicId]?.id === ticketId) {
           next[clinicId] = null;
         }
       });
-
       return next;
     });
+
+    setTimeout(() => {
+      processingTicketsRef.current.delete(ticketId);
+    }, 1000);
   }, []);
 
   /*
@@ -545,6 +562,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
    */
   const completePatient = useCallback(
     async (ticketId: string): Promise<void> => {
+      processingTicketsRef.current.add(ticketId);
+
       const now = new Date();
 
       const { error } = await supabase
@@ -557,6 +576,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('فشل إنهاء التذكرة:', error);
+        processingTicketsRef.current.delete(ticketId);
         return;
       }
 
@@ -574,15 +594,17 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
       setCurrentPatients((prev) => {
         const next = { ...prev };
-
         Object.keys(next).forEach((clinicId) => {
           if (next[clinicId]?.id === ticketId) {
             next[clinicId] = null;
           }
         });
-
         return next;
       });
+
+      setTimeout(() => {
+        processingTicketsRef.current.delete(ticketId);
+      }, 1000);
     },
     []
   );
