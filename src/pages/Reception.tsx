@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  Trash2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -16,7 +17,7 @@ import { useQueue } from '../context/QueueContext';
   function Reception() {
     usePageTitle('شاشة الاستقبال وإصدار التذاكر');
     const navigate = useNavigate();
-    const { clinics, currentPatients, getWaitingTickets, issueTicket, tickets } = useQueue();
+    const { clinics, currentPatients, getWaitingTickets, issueTicket, tickets, cancelTicket } = useQueue();
     const [onlineClinicIds, setOnlineClinicIds] = useState<Set<string>>(new Set());
   
     useEffect(() => {
@@ -115,6 +116,12 @@ const waitingTickets = tickets
       window.print();
     }, 150);
   };
+
+    const handleCancelTicket = (ticketId: string, ticketNumber: string) => {
+  if (window.confirm(`هل أنت تأكد من إغلاق/إلغاء التذكرة رقم ${ticketNumber}؟`)) {
+    cancelTicket(ticketId);
+  }
+};
 
   const handleLogout = () => {
     sessionStorage.removeItem('receptionAuthenticated');
@@ -406,6 +413,9 @@ const waitingTickets = tickets
                           <th className="px-4 py-4 text-xs font-extrabold text-slate-500">
                             الحالة
                           </th>
+                          <th className="px-4 py-4 text-xs font-extrabold text-slate-500 text-center">
+  الإجراء
+</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -434,6 +444,16 @@ const waitingTickets = tickets
                                 في الانتظار
                               </span>
                             </td>
+                            <td className="px-4 py-4 text-center">
+  <button
+    type="button"
+    onClick={() => handleCancelTicket(ticket.id, ticket.ticketNumber)}
+    title="إلغاء التذكرة"
+    className="inline-flex items-center justify-center p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+  >
+    <Trash2 size={16} />
+  </button>
+</td>
                           </tr>
                         ))}
                       </tbody>
