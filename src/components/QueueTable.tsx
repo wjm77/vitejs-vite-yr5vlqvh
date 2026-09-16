@@ -117,6 +117,7 @@ function StatusBadge({ status }: { status: Ticket['status'] }) {
       label: 'تم التخطي',
       className: 'bg-slate-100 text-slate-600',
     },
+    cancelled: { label: 'ملغي', className: 'bg-red-50 text-red-700 border-red-200' },
   };
 
   const current = config[status];
