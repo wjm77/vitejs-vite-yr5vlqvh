@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, Monitor, Stethoscope, Users } from 'lucide-react';
+import { Monitor, Stethoscope, Users } from 'lucide-react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useQueue } from '../context/QueueContext';
 import type { Ticket } from '../types/queue';
